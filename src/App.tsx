@@ -23,6 +23,9 @@ import {
   exportDailyBoards,
   getDailyBoard,
   importDailyBoards,
+  isCarryoverReviewed,
+  markCarryoverReviewed,
+  moveItems,
   upsertItem,
   type DailyBoard,
 } from './features/boards/dailyBoardStore'
@@ -34,6 +37,12 @@ import {
 import './workspace.css'
 
 type ComposerPosition = { x: number; y: number }
+
+type CarryoverReview = {
+  sourceDate: string
+  items: QuadrantItem[]
+  selectedItemIds: string[]
+}
 
 type TaskMarkerProps = {
   draftTitle: string
@@ -65,6 +74,21 @@ const shiftDate = (date: string, days: number): string => {
   const nextDate = new Date(`${date}T00:00:00`)
   nextDate.setDate(nextDate.getDate() + days)
   return getDateKey(nextDate)
+}
+
+const getCarryoverReview = (targetDate: string): CarryoverReview | null => {
+  if (isCarryoverReviewed(targetDate)) {
+    return null
+  }
+
+  const sourceDate = shiftDate(targetDate, -1)
+  const items = getDailyBoard(sourceDate).items.filter(
+    ({ status }) => status === 'open',
+  )
+
+  return items.length === 0
+    ? null
+    : { sourceDate, items, selectedItemIds: items.map(({ id }) => id) }
 }
 
 const getTaskMarkerColor = (itemId: string): string => {
@@ -181,6 +205,8 @@ function App() {
   const [draftTitle, setDraftTitle] = useState('')
   const [editingItem, setEditingItem] = useState<QuadrantItem | null>(null)
   const [noteItemId, setNoteItemId] = useState<string | null>(null)
+  const [carryoverReview, setCarryoverReview] =
+    useState<CarryoverReview | null>(() => getCarryoverReview(initialDate))
   const canvasRef = useRef<HTMLDivElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
   const [backupStatus, setBackupStatus] = useState<string | null>(null)
@@ -196,6 +222,40 @@ function App() {
     setComposerPosition(null)
     setEditingItem(null)
     setNoteItemId(null)
+    setCarryoverReview(getCarryoverReview(nextDate))
+  }
+
+  const toggleCarryoverItem = (itemId: string): void => {
+    setCarryoverReview((currentReview) => {
+      if (currentReview === null) return null
+
+      const selectedItemIds = currentReview.selectedItemIds.includes(itemId)
+        ? currentReview.selectedItemIds.filter((id) => id !== itemId)
+        : [...currentReview.selectedItemIds, itemId]
+
+      return { ...currentReview, selectedItemIds }
+    })
+  }
+
+  const completeCarryoverReview = (): void => {
+    if (carryoverReview === null) return
+
+    if (carryoverReview.selectedItemIds.length > 0) {
+      moveItems(
+        carryoverReview.sourceDate,
+        selectedDate,
+        carryoverReview.selectedItemIds,
+      )
+      setBoard(getDailyBoard(selectedDate))
+    }
+
+    markCarryoverReviewed(selectedDate)
+    setCarryoverReview(null)
+  }
+
+  const skipCarryoverReview = (): void => {
+    markCarryoverReviewed(selectedDate)
+    setCarryoverReview(null)
   }
 
   const saveItem = (item: QuadrantItem): void => {
@@ -403,6 +463,40 @@ function App() {
         <p className="backup-status" role="status">
           {backupStatus}
         </p>
+      )}
+      {carryoverReview !== null && (
+        <section className="carryover-review" aria-labelledby="carryover-title">
+          <div className="carryover-review-heading">
+            <div>
+              <p className="section-label">FROM THE PREVIOUS DAY</p>
+              <h2 id="carryover-title">Carry over unfinished tasks</h2>
+            </div>
+            <p>{carryoverReview.items.length} unfinished</p>
+          </div>
+          <ul>
+            {carryoverReview.items.map((item) => (
+              <li key={item.id}>
+                <label>
+                  <input
+                    type="checkbox"
+                    aria-label={`Carry ${item.title}`}
+                    checked={carryoverReview.selectedItemIds.includes(item.id)}
+                    onChange={() => toggleCarryoverItem(item.id)}
+                  />
+                  <span>{item.title}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          <div className="carryover-actions">
+            <button type="button" onClick={completeCarryoverReview}>
+              Carry forward ({carryoverReview.selectedItemIds.length})
+            </button>
+            <button type="button" onClick={skipCarryoverReview}>
+              Skip for today
+            </button>
+          </div>
+        </section>
       )}
       <section className="workspace">
         <section className="board-panel" aria-labelledby="board-heading">

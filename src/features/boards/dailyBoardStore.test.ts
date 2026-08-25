@@ -5,6 +5,9 @@ import {
   exportDailyBoards,
   getDailyBoard,
   importDailyBoards,
+  isCarryoverReviewed,
+  markCarryoverReviewed,
+  moveItems,
   saveDailyBoard,
   upsertItem,
 } from './dailyBoardStore'
@@ -66,6 +69,29 @@ describe('daily board persistence', () => {
     expect(getDailyBoard(date).items).toEqual([
       { ...item('existing'), title: 'updated' },
     ])
+  })
+
+  it('moves selected unfinished tasks to a new date without copying them', () => {
+    const carriedItem = {
+      ...item('carry'),
+      note: 'Keep the context',
+      x: 0.25,
+      y: 0.75,
+    }
+    saveDailyBoard({ date, items: [carriedItem, item('stay')] })
+
+    moveItems(date, '2026-08-22', ['carry'])
+
+    expect(getDailyBoard(date).items.map(({ id }) => id)).toEqual(['stay'])
+    expect(getDailyBoard('2026-08-22').items).toEqual([carriedItem])
+  })
+
+  it('persists a reviewed carryover date', () => {
+    expect(isCarryoverReviewed('2026-08-22')).toBe(false)
+
+    markCarryoverReviewed('2026-08-22')
+
+    expect(isCarryoverReviewed('2026-08-22')).toBe(true)
   })
 })
 

@@ -20,6 +20,13 @@ const createTask = (title: string): void => {
   fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
 }
 
+const getDateKey = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 describe('App', () => {
   it('shows priority and difficulty labels at the quadrant midline endpoints', () => {
     render(<App />)
@@ -141,6 +148,7 @@ describe('App', () => {
 
     createTask('Today only')
     fireEvent.click(screen.getByRole('button', { name: 'Next day' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for today' }))
 
     expect(screen.queryByText('Today only')).not.toBeInTheDocument()
     expect(screen.getByText('0/0 complete')).toBeInTheDocument()
@@ -150,6 +158,57 @@ describe('App', () => {
     expect(
       screen.getByRole('heading', { name: 'Today only' }),
     ).toBeInTheDocument()
+  })
+
+  it('offers to carry unfinished tasks forward from yesterday', () => {
+    const today = getDateKey(new Date())
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayKey = getDateKey(yesterday)
+    localStorage.setItem(
+      'quad-daily:boards',
+      JSON.stringify({
+        version: 1,
+        boards: {
+          [yesterdayKey]: {
+            date: yesterdayKey,
+            items: [
+              {
+                id: 'unfinished',
+                title: 'Continue draft',
+                x: 0.7,
+                y: 0.8,
+                status: 'open',
+                createdAt: `${yesterdayKey}T09:00:00.000Z`,
+              },
+            ],
+          },
+          [today]: { date: today, items: [] },
+        },
+      }),
+    )
+
+    render(<App />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Carry over unfinished tasks' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('checkbox', { name: 'Carry Continue draft' }),
+    ).toBeChecked()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Carry forward (1)' }))
+
+    expect(
+      screen.getByRole('heading', { name: 'Continue draft' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Carry over unfinished tasks' }),
+    ).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Previous day' }))
+    expect(
+      screen.queryByRole('heading', { name: 'Continue draft' }),
+    ).not.toBeInTheDocument()
   })
 
   it('loads an isolated board when selecting a date from the calendar', () => {

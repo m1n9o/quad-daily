@@ -8,6 +8,7 @@ export type DailyBoard = {
 type StoredBoards = {
   version: 1
   boards: Record<string, DailyBoard>
+  carryoverReviewedDates?: string[]
 }
 
 const storageKey = 'quad-daily:boards'
@@ -73,6 +74,47 @@ export const deleteItem = (date: string, itemId: string): void => {
     ...board,
     items: board.items.filter(({ id }) => id !== itemId),
   })
+}
+
+export const moveItems = (
+  sourceDate: string,
+  targetDate: string,
+  itemIds: string[],
+): void => {
+  const storedBoards = readStoredBoards()
+  const sourceBoard = storedBoards.boards[sourceDate] ?? emptyBoard(sourceDate)
+  const targetBoard = storedBoards.boards[targetDate] ?? emptyBoard(targetDate)
+  const itemIdsToMove = new Set(itemIds)
+  const movedItems = sourceBoard.items.filter(({ id }) => itemIdsToMove.has(id))
+  const targetItemIds = new Set(targetBoard.items.map(({ id }) => id))
+
+  storedBoards.boards[sourceDate] = {
+    ...sourceBoard,
+    items: sourceBoard.items.filter(({ id }) => !itemIdsToMove.has(id)),
+  }
+  storedBoards.boards[targetDate] = {
+    ...targetBoard,
+    items: [
+      ...targetBoard.items,
+      ...movedItems.filter(({ id }) => !targetItemIds.has(id)),
+    ],
+  }
+  writeStoredBoards(storedBoards)
+}
+
+export const isCarryoverReviewed = (date: string): boolean =>
+  readStoredBoards().carryoverReviewedDates?.includes(date) ?? false
+
+export const markCarryoverReviewed = (date: string): void => {
+  const storedBoards = readStoredBoards()
+  const reviewedDates = storedBoards.carryoverReviewedDates ?? []
+
+  if (reviewedDates.includes(date)) {
+    return
+  }
+
+  storedBoards.carryoverReviewedDates = [...reviewedDates, date]
+  writeStoredBoards(storedBoards)
 }
 
 export const exportDailyBoards = (): string =>
