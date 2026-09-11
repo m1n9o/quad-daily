@@ -52,6 +52,11 @@
   font-size: 13px;
   text-align: right;
 }
+.privacy-note {
+  margin: 4px 0 0;
+  color: #64706a;
+  font-size: 12px;
+}
 .carryover-review {
   display: grid;
   grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.4fr) auto;

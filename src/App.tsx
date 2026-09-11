@@ -406,6 +406,9 @@ function App() {
       <header className="topbar">
         <div>
           <h1>Quad Daily</h1>
+          <p className="privacy-note">
+            No data leaves your browser — everything is stored locally.
+          </p>
         </div>
         <div className="header-actions">
           <div className="backup-actions" aria-label="Backup controls">
